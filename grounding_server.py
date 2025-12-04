@@ -77,7 +77,7 @@ RESPONSE_SCHEMA_DICT = {
 
 def _fix_orientation(img: Image.Image) -> Image.Image:
     try:
-        exif = img._getexif()
+        exif = img.getexif()
         if not exif: return img
         orientation = exif.get(274) # 274 is the Orientation tag ID
         if orientation == 3: return img.rotate(180, expand=True)
@@ -121,7 +121,7 @@ class GoogleBackend(BackendHandler):
     def __init__(self, key: str, model: str):
         if not genai: raise ImportError("google-genai package not installed")
         self.client = genai.Client(api_key=key)
-        # Requirement: "THE MODEl to use is models/gemini-flash-latest"
+        # Requirement: "THE MODEL to use is models/gemini-flash-latest"
         self.model = model if model else DEFAULT_GOOGLE_MODEL
         logger.info(f"Initialized Google Backend with model: {self.model}")
 
