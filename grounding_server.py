@@ -2,13 +2,12 @@ import os
 import base64
 import json
 import logging
-import hashlib
 from io import BytesIO
 from typing import Dict, List, Optional, Any
 
 from fastmcp import FastMCP
-from PIL import Image, ExifTags
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from PIL import Image
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # --- Backend SDKs ---
 # We import these conditionally or handle errors if config is missing, 
@@ -20,7 +19,7 @@ except ImportError:
     genai = None
 
 try:
-    from openai import OpenAI, APIConnectionError, RateLimitError
+    from openai import OpenAI
 except ImportError:
     OpenAI = None
 
