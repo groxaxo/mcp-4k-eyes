@@ -44,7 +44,7 @@ MAX_DIMENSION = 8000
 ALLOWED_TYPES = {"button", "input", "icon", "text", "link", "image", "other"}
 
 # Initialize FastMCP
-mcp = FastMCP("Blind Agent Visual Cortex", dependencies=["google-genai", "openai", "pillow"])
+mcp = FastMCP("Blind Agent Visual Cortex")
 
 # --- JSON Schema (Backend Agnostic) ---
 RESPONSE_SCHEMA_DICT = {
