@@ -697,4 +697,4 @@ def analyze_screenshot_with_hierarchy(
 if __name__ == "__main__":
     # 🚀 WEIRD PORT ACTIVATED
     logger.info(f"Starting Grounding MCP Server on port {WEIRD_PORT}...")
-    mcp.run(transport="sse", port=WEIRD_PORT)
+    mcp.run(transport="http", port=WEIRD_PORT)
