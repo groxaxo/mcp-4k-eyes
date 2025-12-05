@@ -9,6 +9,21 @@ from fastmcp import FastMCP
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+# --- Configuration & Logging ---
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("grounding_server")
+
+# --- ADB Utilities ---
+try:
+    from adb_utils import ADBHelper, get_setup_instructions
+except ImportError:
+    ADBHelper = None
+    get_setup_instructions = None
+    logger.warning("adb_utils not available. ADB features will be disabled.")
+
 # --- Backend SDKs ---
 # We import these conditionally or handle errors if config is missing, 
 # but for this script we assume requirements are installed.
@@ -23,19 +38,16 @@ try:
 except ImportError:
     OpenAI = None
 
-# --- Configuration & Logging ---
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("grounding_server")
-
 # 🔧 CONFIGURATION
 WEIRD_PORT = int(os.environ.get("PORT", 43210))  # Default Weird Port
 PROVIDER = os.environ.get("GROUNDING_PROVIDER", "google").lower() # 'google' or 'openai'
 API_KEY = os.environ.get("API_KEY")
 BASE_URL = os.environ.get("BASE_URL") # Optional, for local LLMs
 MODEL_NAME = os.environ.get("MODEL_NAME") # Overrides default if set
+
+# ADB Configuration
+ADB_DEVICE_ID = os.environ.get("ADB_DEVICE_ID")  # Optional device serial
+USE_ROOT_MODE = os.environ.get("USE_ROOT_MODE", "false").lower() == "true"  # Enable root features
 
 # Defaults
 DEFAULT_GOOGLE_MODEL = "models/gemini-flash-latest"
@@ -445,6 +457,242 @@ Be thorough and precise with bounding boxes to enable accurate clicking."""
     except Exception as e:
         logger.exception("Critical error in analyze_screenshot")
         return json.dumps({"error": "internal_error", "message": str(e)})
+
+# --- ADB Tools for Optimal UI Capture ---
+
+@mcp.tool()
+def get_optimal_setup_guide(rooted: bool = False) -> str:
+    """
+    Get comprehensive setup instructions for optimal UI component identification.
+    
+    This guide explains how to configure your Android device (rooted or unrooted)
+    for maximum accuracy when using Vision-Language models to identify UI components.
+    
+    Args:
+        rooted: Set to true if your device has root access for advanced features
+    
+    Returns:
+        Formatted guide with visual settings, ADB commands, and capture scripts
+    """
+    if not get_setup_instructions:
+        return json.dumps({
+            "error": "adb_utils_not_available",
+            "message": "ADB utilities are not installed. This is an optional feature."
+        })
+    
+    try:
+        instructions = get_setup_instructions(rooted=rooted)
+        
+        # Format as readable markdown
+        output = "# Optimal Setup Guide for UI Component Identification\n\n"
+        output += f"**Mode**: {'ROOT' if rooted else 'UNROOTED'}\n\n"
+        
+        for section, content in instructions.items():
+            output += content + "\n\n"
+        
+        return output
+    except Exception as e:
+        logger.error(f"Error generating setup guide: {e}")
+        return json.dumps({"error": "generation_failed", "message": str(e)})
+
+@mcp.tool()
+def configure_device_for_capture(device_id: Optional[str] = None) -> str:
+    """
+    Automatically configure connected Android device with optimal visual settings.
+    
+    This tool configures your device via ADB with the best settings for UI component
+    identification: disables animations, enables layout bounds, and sets up demo mode.
+    
+    Args:
+        device_id: Optional device serial number. If not provided, uses first device.
+    
+    Returns:
+        JSON with configuration results for each setting
+    """
+    if not ADBHelper:
+        return json.dumps({
+            "error": "adb_not_available",
+            "message": "ADB utilities are not installed. This is an optional feature.",
+            "manual_setup": "See get_optimal_setup_guide tool for manual configuration instructions"
+        })
+    
+    try:
+        device_id = device_id or ADB_DEVICE_ID
+        adb = ADBHelper(device_id=device_id, use_root=USE_ROOT_MODE)
+        
+        results = adb.configure_optimal_visual_settings()
+        
+        return json.dumps({
+            "success": True,
+            "device_id": device_id or "default",
+            "root_mode": adb.use_root,
+            "settings_configured": results,
+            "note": "Some settings may require app restart or device UI refresh to take effect"
+        }, indent=2)
+    except Exception as e:
+        logger.error(f"Error configuring device: {e}")
+        return json.dumps({
+            "error": "configuration_failed",
+            "message": str(e),
+            "tip": "Ensure device is connected via ADB and USB debugging is enabled"
+        })
+
+@mcp.tool()
+def capture_with_hierarchy(
+    device_id: Optional[str] = None,
+    include_parsed_elements: bool = True
+) -> str:
+    """
+    Capture screenshot and UI hierarchy from connected Android device.
+    
+    This provides the "hybrid capture" approach: visual context (screenshot) plus
+    structural data (UI hierarchy XML) for maximum accuracy. The screenshot will
+    have layout bounds if configured, and the hierarchy provides exact coordinates
+    and metadata for each UI element.
+    
+    Args:
+        device_id: Optional device serial number
+        include_parsed_elements: Whether to parse and include UI elements in response
+    
+    Returns:
+        JSON with screenshot path, UI hierarchy XML, and optionally parsed elements
+    """
+    if not ADBHelper:
+        return json.dumps({
+            "error": "adb_not_available",
+            "message": "ADB utilities are not installed. This is an optional feature."
+        })
+    
+    try:
+        device_id = device_id or ADB_DEVICE_ID
+        adb = ADBHelper(device_id=device_id, use_root=USE_ROOT_MODE)
+        
+        result = adb.get_combined_capture()
+        
+        if not result["success"]:
+            return json.dumps({
+                "error": "capture_failed",
+                "message": result.get("error", "Unknown error")
+            })
+        
+        response = {
+            "success": True,
+            "screenshot_path": result["screenshot_path"],
+            "ui_hierarchy_available": result["ui_hierarchy"] is not None,
+            "root_mode": adb.use_root
+        }
+        
+        if include_parsed_elements and result["parsed_elements"]:
+            # Include parsed elements for easy consumption
+            response["parsed_elements"] = result["parsed_elements"]
+            response["element_count"] = len(result["parsed_elements"])
+        
+        if result["ui_hierarchy"]:
+            # Optionally include raw XML (can be large)
+            response["ui_hierarchy_xml"] = result["ui_hierarchy"][:1000] + "..." if len(result["ui_hierarchy"]) > 1000 else result["ui_hierarchy"]
+        
+        return json.dumps(response, indent=2)
+    except Exception as e:
+        logger.error(f"Error capturing with hierarchy: {e}")
+        return json.dumps({
+            "error": "capture_failed",
+            "message": str(e)
+        })
+
+@mcp.tool()
+def restore_device_settings(device_id: Optional[str] = None) -> str:
+    """
+    Restore device to default visual settings after capture.
+    
+    This re-enables animations, disables layout bounds, and turns off demo mode.
+    
+    Args:
+        device_id: Optional device serial number
+    
+    Returns:
+        JSON with restoration results
+    """
+    if not ADBHelper:
+        return json.dumps({
+            "error": "adb_not_available",
+            "message": "ADB utilities are not installed. This is an optional feature."
+        })
+    
+    try:
+        device_id = device_id or ADB_DEVICE_ID
+        adb = ADBHelper(device_id=device_id, use_root=USE_ROOT_MODE)
+        
+        results = adb.restore_default_settings()
+        
+        return json.dumps({
+            "success": True,
+            "device_id": device_id or "default",
+            "settings_restored": results
+        }, indent=2)
+    except Exception as e:
+        logger.error(f"Error restoring settings: {e}")
+        return json.dumps({
+            "error": "restoration_failed",
+            "message": str(e)
+        })
+
+@mcp.tool()
+def analyze_screenshot_with_hierarchy(
+    image_base64: str,
+    ui_hierarchy_xml: Optional[str] = None
+) -> str:
+    """
+    Enhanced grounding tool that combines screenshot analysis with UI hierarchy data.
+    
+    This provides the most accurate results by giving the VL model both visual context
+    and structural ground truth. If ui_hierarchy_xml is provided, it will be used to
+    enhance and validate the detected components.
+    
+    Args:
+        image_base64: Base64 encoded screenshot
+        ui_hierarchy_xml: Optional UI hierarchy XML from uiautomator or dumpsys
+    
+    Returns:
+        JSON with enhanced component detection including hierarchy validation
+    """
+    # First, run standard screenshot analysis
+    base_result = analyze_screenshot(image_base64)
+    
+    # If no hierarchy provided, return standard result
+    if not ui_hierarchy_xml or not ADBHelper:
+        return base_result
+    
+    try:
+        result_dict = json.loads(base_result)
+        
+        # Parse hierarchy
+        adb = ADBHelper()
+        parsed_elements = adb.parse_ui_hierarchy(ui_hierarchy_xml)
+        
+        if parsed_elements:
+            # Enhance result with hierarchy data
+            result_dict["hierarchy_elements_count"] = len(parsed_elements)
+            result_dict["hierarchy_available"] = True
+            
+            # Add hierarchy elements for reference
+            result_dict["ui_elements_from_hierarchy"] = [
+                {
+                    "resource_id": elem["resource_id"],
+                    "text": elem["text"],
+                    "content_desc": elem["content_desc"],
+                    "class": elem["class"],
+                    "bounds": elem.get("bounds_parsed"),
+                    "clickable": elem["clickable"]
+                }
+                for elem in parsed_elements
+                if elem["clickable"] or elem["text"] or elem["content_desc"]
+            ][:50]  # Limit to 50 most relevant elements
+        
+        return json.dumps(result_dict, indent=2)
+    except Exception as e:
+        logger.error(f"Error enhancing with hierarchy: {e}")
+        # Return base result if enhancement fails
+        return base_result
 
 if __name__ == "__main__":
     # 🚀 WEIRD PORT ACTIVATED
