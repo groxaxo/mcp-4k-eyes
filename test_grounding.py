@@ -78,7 +78,6 @@ def test_openai_init_defaults():
 
 def test_image_format_validation():
     """Test that various image formats are handled correctly."""
-    import json
     # Test with a valid PNG image
     img = Image.new('RGB', (100, 100), color='red')
     buffer = BytesIO()

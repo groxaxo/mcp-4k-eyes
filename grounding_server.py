@@ -260,6 +260,8 @@ Important:
 
 # --- Initialization Logic ---
 
+handler: Optional[BackendHandler] = None
+
 def _get_handler() -> BackendHandler:
     """
     Get or initialize the backend handler.
@@ -284,7 +286,6 @@ def _get_handler() -> BackendHandler:
     return handler
 
 # Initialize handler at module level to catch configuration errors early
-handler = None
 try:
     if API_KEY:
         handler = _get_handler()
@@ -292,6 +293,7 @@ try:
         logger.warning("API_KEY not set. Handler will be initialized on first request.")
 except Exception as e:
     logger.error(f"Failed to initialize handler: {e}")
+    handler = None
 
 # --- The Tool ---
 
