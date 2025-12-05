@@ -449,4 +449,4 @@ Be thorough and precise with bounding boxes to enable accurate clicking."""
 if __name__ == "__main__":
     # 🚀 WEIRD PORT ACTIVATED
     logger.info(f"Starting Grounding MCP Server on port {WEIRD_PORT}...")
-    mcp.run(port=WEIRD_PORT)
+    mcp.run(transport="sse", port=WEIRD_PORT)
