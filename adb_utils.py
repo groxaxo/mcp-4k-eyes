@@ -5,6 +5,7 @@ This module provides utilities to configure Android devices (rooted and unrooted
 for optimal Vision-Language model performance when identifying UI components.
 """
 
+import os
 import subprocess
 import logging
 import json
@@ -169,13 +170,17 @@ class ADBHelper:
         Returns:
             Tuple of (success, local_path or error)
         """
+        import tempfile
+        import uuid
+        
         # Capture screenshot on device
         success, output = self._run_command(f"screencap -p {output_path}")
         if not success:
             return False, f"Failed to capture screenshot: {output}"
         
-        # Pull to local machine
-        local_path = f"/tmp/screenshot_{Path(output_path).name}"
+        # Pull to local machine with unique filename
+        unique_id = uuid.uuid4().hex[:8]
+        local_path = os.path.join(tempfile.gettempdir(), f"screenshot_{unique_id}.png")
         success, output = self._run_command(f"pull {output_path} {local_path}", use_shell=False)
         if not success:
             return False, f"Failed to pull screenshot: {output}"
@@ -197,7 +202,7 @@ class ADBHelper:
         if use_root and self.is_root_available:
             # Root method: Use dumpsys (faster, bypasses secure flags)
             logger.info("Dumping UI hierarchy using root method...")
-            success, output = self._run_command("su -c 'dumpsys activity top'")
+            success, output = self._run_command('su -c "dumpsys activity top"')
             if success:
                 return True, output
             else:

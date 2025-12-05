@@ -264,13 +264,13 @@ class TestIntegrationScenarios:
         config_result = helper.configure_optimal_visual_settings()
         assert config_result["layout_bounds"]
         
-        # Capture screenshot
+        # Capture screenshot - will succeed because subprocess is mocked
         success, path = helper.capture_screenshot()
-        assert success or not success  # Will fail without real device, that's ok
+        assert success
         
-        # Dump hierarchy  
+        # Dump hierarchy - will succeed because subprocess is mocked  
         success, xml = helper.dump_ui_hierarchy()
-        assert success or not success  # Will fail without real device, that's ok
+        assert success
         
         # Restore
         restore_result = helper.restore_default_settings()

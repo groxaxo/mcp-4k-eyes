@@ -9,6 +9,13 @@ from fastmcp import FastMCP
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+# --- Configuration & Logging ---
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("grounding_server")
+
 # --- ADB Utilities ---
 try:
     from adb_utils import ADBHelper, get_setup_instructions
@@ -30,13 +37,6 @@ try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
-
-# --- Configuration & Logging ---
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("grounding_server")
 
 # 🔧 CONFIGURATION
 WEIRD_PORT = int(os.environ.get("PORT", 43210))  # Default Weird Port
