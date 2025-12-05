@@ -1,0 +1,10 @@
+{
+  "entrypoint": "grounding_server.py",
+  "environment": {
+    "dependencies": [
+      "google-genai",
+      "openai",
+      "pillow"
+    ]
+  }
+}
